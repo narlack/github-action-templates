@@ -1,0 +1,89 @@
+# This is a basic workflow to help you get started with Actions
+
+name: CI/CD
+
+# Controls when the workflow will run
+on:
+  # Triggers the workflow on push or pull request events but only for the "main" branch
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+# Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# A workflow run is made up of one or more jobs that can run sequentially or in parallel
+jobs:
+  # This workflow contains a single job called "build"
+  build:
+    # The type of runner that the job will run on
+    runs-on: ubuntu-latest
+
+    # Steps represent a sequence of tasks that will be executed as part of the job
+    steps:
+      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+      - uses: actions/checkout@v3
+
+      # Installing dependencies for project
+      - name: Install dependencies
+        run: npm ci
+
+      # Lint full application
+      - name: Test application
+        run: npm run lint
+
+      # Execute test to validate application
+      - name: Test application
+        run: npm run test
+
+      # Build application after success test run
+      - name: Build
+        run: npm run build
+   
+      # Share artifact for feature deploy
+      - name: Share artifact inside workflow
+        uses: actions/upload-pages-artifact@v1
+        with:
+          path: build
+  deploy:
+    # When application is successfully tested and build has been generated
+    # Then we can start with deployment
+    needs: build
+    if: ${{ success() }}
+
+    # Deploy to the github-pages environment
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    # The type of runner that the job will run on
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v2
+
+  notify:
+    # The type of runner that the job will run on
+    runs-on: ubuntu-latest
+    needs: build
+    # Would be executed in case if build was failed
+    if: ${{failure()}}
+
+    steps:
+      - name: Notify in telegram
+        uses: kekedaine/telegram-action@v5.0.8
+        env:
+          TELEGRAM_TOKEN: ${{ secrets.telegram_token }}
+          TELEGRAM_CHAT: ${{ secrets.telegram_chat }}
+        with:
+          message: "Hello! Your build is failed, please have a look on the build logs."
+          parse_mode: "html"
